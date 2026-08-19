@@ -23,7 +23,7 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-TMP_ROOT=$(dotfiles_test_tmproot pi-calm)
+dotfiles_test_tmproot TMP_ROOT pi-calm
 CALM_DIR="$ROOT/home/.pi/agent/extensions/calm"
 PI_PACKAGE_DIR=${PI_CALM_TEST_PACKAGE_DIR:-"$(npm root -g 2>/dev/null)/@earendil-works/pi-coding-agent"}
 TMUX_SOCKET="pi-calm-test-$$"
@@ -103,7 +103,7 @@ test_zero_coupling_and_state_file() {
   local pat_watch="fm_""watch_arm_pi" pat_op="FIRSTMATE""_OP" pat_dash="fm-""calm"
 
   # The operational marker and upstream runtime surfaces must not exist anywhere.
-  for file in $source_files "$ROOT/tests/pi-calm.test.sh" "$ROOT/tests/lib.sh" "$ROOT/README.md" "$ROOT/home.nix"; do
+  for file in $source_files "$ROOT/tests/pi-calm.test.sh" "$ROOT/tests/lib.sh" "$ROOT/README.md" "$ROOT/linux/home.nix"; do
 
     assert_not_contains "$(cat "$file")" "$pat_fm_home" "$file mentions $pat_fm_home"
     assert_not_contains "$(cat "$file")" "$pat_fm_root" "$file mentions $pat_fm_root"
@@ -115,7 +115,7 @@ test_zero_coupling_and_state_file() {
   done
   # The upstream project name may appear only in a license attribution.
   local attribution_name="First""mate"
-  license_hits=$(grep -rni "$attribution_name" "$CALM_DIR" "$ROOT/README.md" "$ROOT/home.nix" 2>/dev/null | grep -v "Adapted from" || true)
+  license_hits=$(grep -rni "$attribution_name" "$CALM_DIR" "$ROOT/README.md" "$ROOT/linux/home.nix" 2>/dev/null | grep -v "Adapted from" || true)
   [ -z "$license_hits" ] || fail "unexpected upstream references outside license attribution: $license_hits"
   grep -q "MIT License" "$CALM_DIR/LICENSE" || fail "calm LICENSE lost the MIT permission text"
   grep -q "Copyright (c) 2026 Kun Chen" "$CALM_DIR/LICENSE" || fail "calm LICENSE lost the copyright notice"
@@ -127,7 +127,7 @@ test_zero_coupling_and_state_file() {
   if git -C "$ROOT" ls-files --error-unmatch home/.pi/agent/calm >/dev/null 2>&1; then
     fail "the Calm state file is tracked in the repository"
   fi
-  assert_not_contains "$(cat "$ROOT/home.nix")" '.pi/agent/calm' "home.nix manages the Calm state file"
+  assert_not_contains "$(cat "$ROOT/linux/home.nix")" '.pi/agent/calm' "home.nix manages the Calm state file"
   grep -q '^/home/.pi/agent/calm$' "$ROOT/.gitignore" \
     || fail ".gitignore does not guard /home/.pi/agent/calm"
 
@@ -142,15 +142,22 @@ test_zero_coupling_and_state_file() {
 test_static_typescript_and_repo_wiring() {
   # Home Manager links the extensions directory as a whole, so the calm
   # subdirectory auto-loads without any new declaration.
-  grep -q 'home.file.".pi/agent/extensions".source =' "$ROOT/home.nix" \
+  grep -q 'home.file.".pi/agent/extensions".source =' "$ROOT/linux/home.nix" \
     || fail "home.nix no longer links ~/.pi/agent/extensions as a directory"
-  grep -q "mkOutOfStoreSymlink \"\${dotfiles}/home/.pi/agent/extensions\"" "$ROOT/home.nix" \
+  grep -q "mkOutOfStoreSymlink \"\${dotfiles}/home/.pi/agent/extensions\"" "$ROOT/linux/home.nix" \
     || fail "home.nix changed the Pi extensions link target"
   [ -f "$CALM_DIR/index.ts" ] || fail "calm extension entry point missing"
   [ -f "$CALM_DIR/LICENSE" ] || fail "calm license file missing"
 
-  # JavaScript syntax of the pre-existing extension stays valid.
-  node --check "$ROOT/home/.pi/agent/extensions/terminal-status-title.js" \
+  # JavaScript syntax of the pre-existing ESM extension stays valid. Put it in
+  # an explicit ESM package because `node --check` otherwise parses .js as
+  # CommonJS when this repository has no package.json.
+  local javascript_fixture="$TMP_ROOT/javascript-check"
+  mkdir -p "$javascript_fixture"
+  cp "$ROOT/home/.pi/agent/extensions/terminal-status-title.js" \
+    "$javascript_fixture/terminal-status-title.js"
+  printf '{"type":"module"}\n' >"$javascript_fixture/package.json"
+  node --check "$javascript_fixture/terminal-status-title.js" \
     || fail "terminal-status-title.js has a JavaScript syntax error"
 
   if ! have_pi_package; then

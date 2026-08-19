@@ -1,19 +1,36 @@
-{ config, pkgs, user, ... }:
+{
+  config,
+  lib,
+  pkgs,
+  user,
+  homeDirectory,
+  isOmarchy ? false,
+  ...
+}:
 
 let
   dotfiles = "${config.home.homeDirectory}/.dotfiles";
+  shellAliases = {
+    ".." = "cd ..";
+    add = "git add .";
+    push = "git push";
+    pull = "git pull";
+    m = "git switch main";
+    cc = "claude --dangerously-skip-permissions";
+    co = "codex --full-auto";
+  };
 in
 
 {
   home.username = user;
-  home.homeDirectory = "/Users/${user}";
+  home.homeDirectory = homeDirectory;
   home.stateVersion = "24.11";
   home.packages = with pkgs; [
     # cli i use constantly
-    ripgrep   # fast search
-    fd        # fast find
-    fzf       # fuzzy finder
-    jq        # json on the command line
+    ripgrep # fast search
+    fd # fast find
+    fzf # fuzzy finder
+    jq # json on the command line
     lazygit
     nodejs
     neovim
@@ -25,25 +42,39 @@ in
   fonts.fontconfig.enable = true;
   home.sessionVariables.EDITOR = "nvim";
 
-  programs.zsh = {
+  programs.zsh = lib.mkIf (!isOmarchy) {
     enable = true;
-    autosuggestion.enable = true;      # ghost text from history
-    syntaxHighlighting.enable = true;  # commands turn green when valid
+    autosuggestion.enable = true; # ghost text from history
+    syntaxHighlighting.enable = true; # commands turn green when valid
     initContent = ''
       bindkey '^f' autosuggest-accept
     '';
-    shellAliases = {
-      ".." = "cd ..";
-      add = "git add .";
-      push = "git push";
-      pull = "git pull";
-      m = "git switch main";
-      cc = "claude --dangerously-skip-permissions";
-      co = "codex --full-auto";
-    };
+    inherit shellAliases;
   };
 
-  programs.starship.enable = true;
+  # Omarchy uses Bash as its login shell. Load its own aliases, functions,
+  # environment, completions, and Starship setup before applying local aliases.
+  programs.bash = lib.mkIf isOmarchy {
+    enable = true;
+    bashrcExtra = ''
+      if [[ $- == *i* ]]; then
+        if [[ -r /usr/share/omarchy/default/bash/rc ]]; then
+          [[ -r /usr/share/omarchy/default/bash/env-bootstrap ]] \
+            && source /usr/share/omarchy/default/bash/env-bootstrap
+          source /usr/share/omarchy/default/bash/rc
+        elif [[ -r "$HOME/.local/share/omarchy/default/bash/rc" ]]; then
+          source "$HOME/.local/share/omarchy/default/bash/rc"
+        fi
+      fi
+    '';
+    inherit shellAliases;
+  };
+
+  programs.starship = {
+    enable = true;
+    # Omarchy's Bash initialization already starts Starship.
+    enableBashIntegration = !isOmarchy;
+  };
 
   # Edit-in-place: the real file stays in my repo, ~/.config just points at it.
   home.file.".config/ghostty".source =

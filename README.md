@@ -3,8 +3,8 @@
 Based on [kunchenguid/dotfiles](https://github.com/kunchenguid/dotfiles).
 Watch the original walkthrough: https://youtu.be/5N-okeDdIuI
 
-My personal Mac setup, managed with nix-darwin and home-manager.
-One repo, one command, and a fresh Mac ends up configured the same way every time.
+My personal Apple Silicon Mac and Framework Desktop setup.
+The Mac uses nix-darwin and Home Manager. The Framework runs Omarchy and uses standalone Home Manager, leaving Arch Linux and the Omarchy desktop in charge of the system.
 
 ## Contributing / Using This Repo
 
@@ -14,26 +14,29 @@ If you find a bug, please open a GitHub Issue using the bug report template.
 
 ## What you get
 
-Running the switch builds:
+Both machines get:
 
-- System settings (dark mode, key repeat, dock, Finder, trackpad)
-- Homebrew apps (casks and CLI tools)
 - Nix user packages (ripgrep, fd, fzf, jq, lazygit, Node.js, Neovim, Prettier, unzip, Hack Nerd Font)
-- Shell (zsh, aliases, Starship prompt with the Catppuccin Mocha palette)
+- Shell aliases and a Starship prompt with the Catppuccin Mocha palette
 - Editor (Neovim config with the Catppuccin Mocha theme)
 - Terminal (Ghostty config with the Catppuccin Mocha theme, transparency, and background blur)
 - Agent configs (Claude, Codex, opencode all share one AGENTS.md)
 - Optional Pi theme and local extensions, generic UI settings and model overrides, plus two deliberately pinned third-party Pi packages
 
+The Mac additionally gets macOS defaults and the declared Homebrew apps. The Framework keeps Omarchy's system packages, AMD drivers, Hyprland desktop, and hardware setup untouched.
+
 ## Prerequisites
 
 - Apple Silicon Mac, by default.
+- Framework Desktop with the Ryzen AI Max+ 395, including the 128 GB configuration, running Omarchy on `x86_64-linux`.
 - Intel Mac: change one line.
   In `configuration.nix`, set `nixpkgs.hostPlatform = "x86_64-darwin";` (the comment right there tells you the same thing).
 
+The Framework's 128 GB memory capacity needs no Nix setting. Omarchy owns the kernel, firmware, graphics, networking, and hardware-specific configuration.
+
 ## Fresh-machine setup
 
-On a brand new Mac, from a bare clone of this repo:
+On a brand new Mac, or after completing the Omarchy installation on the Framework, start from a bare clone of this repo:
 
 ```sh
 git clone https://github.com/Beyaoju/dotfiles.git
@@ -41,7 +44,7 @@ cd dotfiles
 ```
 
 Before you run it: review "Make it yours" below.
-Change the host label or CPU architecture if needed, and read the Homebrew cleanup warning.
+Review the username and host labels below. Mac users should also read the Homebrew cleanup warning.
 `bootstrap.sh` applies the config to your machine, so do this first.
 
 ```sh
@@ -52,23 +55,34 @@ Change the host label or CPU architecture if needed, and read the Homebrew clean
 
 1. Installs Determinate Nix, if it isn't already installed.
 2. Symlinks this repo to `~/.dotfiles`.
-   This has to happen before the first build, because `home.nix` points at config files through `~/.dotfiles`.
-3. Checks the `user` configured in `flake.nix` against your actual macOS username, and offers to fix it for you if they differ.
-4. Runs the first `darwin-rebuild switch`.
-   It fetches the `darwin-rebuild` tool from the nix-darwin 26.05 release branch, then applies this repo's locked flake config.
+   This has to happen before the first build, because `linux/home.nix` points at config files through `~/.dotfiles`.
+3. Checks the `user` in both flake files against your local username and offers to update both when needed.
+4. Selects the activation path by operating system:
 
-After that, `darwin-rebuild` exists and you're on the normal workflow below.
+   - macOS runs the first `darwin-rebuild switch`.
+   - Linux runs standalone Home Manager from `linux/flake.nix` and backs up existing Omarchy-owned files with the `hm-backup` suffix before adopting them.
+
+The Linux flake contains only Nixpkgs and Home Manager inputs. Omarchy does not fetch or install nix-darwin, nix-homebrew, or Homebrew.
 
 ### Validate without applying
 
-Once Nix is installed (`bootstrap.sh` step 1 handles that), you can check that the config builds without touching your system - handy when you have edited something:
+Once Nix is installed (`bootstrap.sh` step 1 handles that), validate the matching platform without applying it:
+
+macOS:
 
 ```sh
 nix flake check --no-build
 nix build .#darwinConfigurations.mac.system --dry-run
 ```
 
-If you renamed the host label in "Make it yours", substitute your label for `mac` in these commands.
+Framework Desktop:
+
+```sh
+nix flake check ./linux --all-systems --no-build
+nix build ./linux#homeConfigurations.framework.activationPackage --dry-run
+```
+
+If you renamed a host label in "Make it yours", substitute that label in these commands.
 
 ## Daily use
 
@@ -86,15 +100,15 @@ No separate build-and-copy step.
 This repo is mine.
 If you clone it, review these before you run `bootstrap.sh`:
 
-- **Username**: run `./bootstrap.sh` (it detects your macOS username and offers to set it) OR change the single `user = "austinb"` line in `flake.nix`.
-  Everything else (`configuration.nix`, `home.nix`, home directory paths) is threaded from that one variable.
-- **Host label** `"mac"`, in three places: `flake.nix` (the `darwinConfigurations."mac"` name), `rebuild.sh:5` (the `#mac` at the end of the flake reference), and `bootstrap.sh`'s first-switch command (also `#mac`).
-  All three have to match.
+- **Username**: run `./bootstrap.sh` to update both platform flakes, or edit the `user = "austinb"` lines in `flake.nix` and `linux/flake.nix` together.
+  The shared Home Manager module receives the matching platform home directory from its flake.
+- **Mac host label** `"mac"`: keep the name in `flake.nix`, `bootstrap.sh`, and `rebuild.sh` synchronized.
+- **Framework host label** `"framework"`: keep the name in `linux/flake.nix`, `bootstrap.sh`, and `rebuild.sh` synchronized.
 - **CPU architecture**, `hostPlatform` in `configuration.nix` (see Prerequisites above).
 
 **Git identity:** this config deliberately does not set your git name or email.
 Git will stop your first commit and tell you to set them (`git config --global user.name "Your Name"` and `git config --global user.email you@example.com`).
-If you'd rather manage that declaratively, add this back to `home.nix` with your own identity:
+If you'd rather manage that declaratively, add this to `linux/home.nix` with your own identity:
 
 ```nix
 programs.git = {
@@ -106,7 +120,7 @@ programs.git = {
 };
 ```
 
-**Homebrew cleanup warning:** `configuration.nix` sets `homebrew.onActivation.cleanup = "zap"`.
+**Homebrew cleanup warning for macOS:** `configuration.nix` sets `homebrew.onActivation.cleanup = "zap"`.
 That means every time you switch, Homebrew removes any package or cask on your machine that isn't listed in the `brews` and `casks` arrays in `configuration.nix`.
 If you already have Homebrew stuff installed that isn't in that list, the first switch will uninstall it.
 Read through `brews` and `casks` before you run `bootstrap.sh` or `rebuild.sh` for the first time, and add anything you want to keep.
@@ -114,20 +128,23 @@ Read through `brews` and `casks` before you run `bootstrap.sh` or `rebuild.sh` f
 **About `herdr`:** it's in the `brews` list.
 It's a real public Homebrew formula (`brew info herdr` finds it in homebrew-core, no tap needed), so it will install fine.
 If you don't use it, just remove it from `brews` in your copy.
+That package declaration is macOS-only. The shared Herdr config is ready on the Framework, but Omarchy remains responsible for installing the Linux binary.
 
 **Heads-up:**
 
-- `home/AGENTS.md` is my personal agent policy, and `home.nix` installs it for Claude, Codex, and opencode.
+- `home/AGENTS.md` is my personal agent policy, and `linux/home.nix` installs it for Claude, Codex, and opencode.
   If you clone this repo, you'd silently inherit my agent instructions - edit or delete `home/AGENTS.md` if you don't want that.
-- The `cc` and `co` shell aliases in `home.nix` are high-agency shortcuts: `claude --dangerously-skip-permissions` and `codex --full-auto`.
+- The `cc` and `co` shell aliases in `linux/home.nix` are high-agency shortcuts: `claude --dangerously-skip-permissions` and `codex --full-auto`.
   They're convenient for me, but know what they do before you use them.
 
 ## Repo tour
 
-- `flake.nix` - the entry point.
-  Wires up nixpkgs, nix-darwin, home-manager, and nix-homebrew, and declares the `mac` machine.
+- `flake.nix` and `flake.lock` - the macOS-only entry point and dependency lock.
+  They wire up nix-darwin, Home Manager, and nix-homebrew, and declare the `mac` machine.
+- `linux/flake.nix` and `linux/flake.lock` - the Framework-only entry point and dependency lock.
+  They use `x86_64-linux` Nixpkgs and standalone Home Manager, with no Darwin or Homebrew inputs.
 - `configuration.nix` - system-level config: macOS defaults, Homebrew.
-- `home.nix` - user-level config: shell, packages, prompt, and the symlinks described below.
+- `linux/home.nix` - the shared user-level config used by both platforms: shell, packages, prompt, and symlinks.
 - `rebuild.sh` - re-applies the config after the first switch.
   Run this every time you make a change.
 - `home/` - the actual config files that get symlinked into place; the sections below explain the shared symlink model and Pi's narrower selective setup.
@@ -135,9 +152,17 @@ If you don't use it, just remove it from `brews` in your copy.
 ## How the symlinks work
 
 The files under `home/` are the real files - editing them here is editing your live config, no rebuild needed to see the change in your editor.
-`home.nix` uses `mkOutOfStoreSymlink` to point `~/.config/nvim`, `~/.config/herdr/config.toml`, and `~/.config/starship.toml` at their authored files in this repo, so they never drift out of sync.
+`linux/home.nix` uses `mkOutOfStoreSymlink` to point `~/.config/nvim`, `~/.config/herdr/config.toml`, and `~/.config/starship.toml` at their authored files in this repo, so they never drift out of sync.
 Herdr's logs, sessions, sockets, and plugin state remain local and writable under `~/.config/herdr`.
 You only run `./rebuild.sh` when you change something that isn't just a symlinked file, like a package list or a system default.
+
+## Omarchy ownership boundary
+
+On the Framework, this repo deliberately manages only the user environment. Omarchy continues to own Arch packages, the AMD graphics stack, Hyprland, system services, firmware, and hardware configuration.
+
+Home Manager does adopt the authored Ghostty and Neovim directories because those are part of this personal setup. The first switch moves the existing Omarchy versions aside with `hm-backup` suffixes. It also generates `.bashrc`, `.bash_profile`, and `.profile`, while sourcing Omarchy's own Bash initialization first. Both the current `/usr/share/omarchy` layout and the older `~/.local/share/omarchy` layout are supported. Local aliases are applied afterward, and Omarchy remains responsible for initializing Starship.
+
+Do not run Omarchy's full config reinstall after activation unless you intend to replace these Home Manager symlinks. Normal Omarchy updates do not require a dotfiles rebuild.
 
 ## Optional Pi configuration
 

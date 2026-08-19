@@ -14,10 +14,15 @@
     nix-homebrew.url = "github:zhaofengli/nix-homebrew";
   };
 
-  outputs = inputs@{ self, nix-darwin, nix-homebrew, home-manager, nixpkgs }:
+  outputs =
+    {
+      nix-darwin,
+      nix-homebrew,
+      home-manager,
+      ...
+    }:
     let
-      # The one username line to change if this isn't your machine.
-      # bootstrap.sh offers to rewrite this for you if your macOS username differs.
+      # bootstrap.sh keeps this in sync with the Linux flake.
       user = "austinb";
     in
     {
@@ -31,8 +36,12 @@
             home-manager.useGlobalPkgs = true;
             home-manager.useUserPackages = true;
             home-manager.backupFileExtension = "hm-backup";
-            home-manager.extraSpecialArgs = { inherit user; };
-            home-manager.users.${user} = import ./home.nix;
+            home-manager.extraSpecialArgs = {
+              inherit user;
+              homeDirectory = "/Users/${user}";
+              isOmarchy = false;
+            };
+            home-manager.users.${user} = import ./linux/home.nix;
           }
         ];
       };
