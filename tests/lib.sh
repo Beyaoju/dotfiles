@@ -36,13 +36,14 @@ dotfiles_test_cleanup() {
 }
 
 dotfiles_test_tmproot() {
-  local prefix=${1:-dotfiles-test} root
+  local output_variable=$1 prefix=${2:-dotfiles-test} root
   root=$(mktemp -d "${TMPDIR:-/tmp}/${prefix}.XXXXXX")
+  root=$(cd "$root" && pwd -P)
   if [ "${#DOTFILES_TEST_CLEANUP_DIRS[@]}" -eq 0 ]; then
     trap dotfiles_test_cleanup EXIT
   fi
   DOTFILES_TEST_CLEANUP_DIRS+=("$root")
-  printf '%s\n' "$root"
+  printf -v "$output_variable" '%s' "$root"
 }
 
 # --- assertions ---------------------------------------------------------------
