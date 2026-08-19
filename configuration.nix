@@ -38,7 +38,7 @@
       "herdr"
     ];
     casks = [
-      "wezterm"
+      "ghostty"
       "claude-code"
     ];
   };

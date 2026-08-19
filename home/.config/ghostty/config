@@ -1,0 +1,17 @@
+theme = Catppuccin Mocha
+font-family = Hack Nerd Font
+font-size = 18
+
+window-width = 280
+window-height = 80
+macos-titlebar-style = hidden
+
+background-opacity = 0.8
+background-opacity-cells = true
+background-blur = 50
+
+# Slowdown mouse scrolling
+mouse-scroll-multiplier = 0.95
+
+# Fix general slowness on hyprland (https://github.com/ghostty-org/ghostty/discussions/3224)
+async-backend = epoll
